@@ -1,0 +1,179 @@
+---
+title: "Universities"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r import}
+library(readr)
+universities <- read_csv("/Users/kyaramati/Documents/Data Mining/Universities.csv")
+universities <- universities[,-1] #remove college name
+universities <- universities[,-1] #remove state
+universities <- universities[,-1] #remove public or private
+universities <- na.omit(universities)
+```
+
+
+```{r PCA}
+library(pls)
+library(glmnet)
+library(ggplot2)
+universities <- scale(universities)
+universities <- as.data.frame(universities)
+
+set.seed(123)
+pcs <- prcomp(universities)
+summary(pcs)
+```
+
+```{r PCA Results}
+pcs$rotation
+```
+
+```{r Crash Dataset Prep}
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(cluster)
+library(clusterSim)
+library(fpc)
+library(date)
+library(dummies)
+library(clustMixType)
+options(scipen = 999)
+
+crash <- read_csv("/Users/kyaramati/Documents/Data Mining/crash.csv")
+
+
+crash$`Atmospheric Condition` <- as.factor(crash$`Atmospheric Condition`)
+crash$Roadway <- as.factor(crash$Roadway)
+
+#making crash date into a date format
+crash$`Crash Date` <- as.Date(crash$`Crash Date`, "%m/%d/%Y")
+
+#coding regions
+ crash$Region<-ifelse(crash$State=="Illinois"|crash$State=="Indiana"|
+                       crash$State=="Michigan"|crash$State=="Ohio"|
+                       crash$State=="Wisconsin"|crash$State=="Iowa"|
+                       crash$State=="Kansas"|crash$State=="Minnesota"|
+                       crash$State=="Missouri"|crash$State=="Nebraska"|
+                       crash$State=="North Dakota"|crash$State=="South Dakota","Midwest",
+                     ifelse(crash$State=="Connecticut"|crash$State=="Maine"|
+                              crash$State=="Massachusetts"|crash$State=="New Hamsphire"|
+                              crash$State=="Rhode Island"|crash$State=="Vermont"|
+                              crash$State=="New Jersey"|crash$State=="New York"|
+                              crash$State=="Pennsylvania","Northeast",
+                      ifelse(crash$State=="Arizona"|crash$State=="Colorado"|
+                              crash$State=="Idaho"|crash$State=="Montana"|
+                              crash$State=="Nevada"|crash$State=="New Mexico"|
+                              crash$State=="Utah"|crash$State=="Wyoming"|
+                              crash$State=="Alaska"|crash$State=="California"|
+                               crash$State=="Hawaii"|crash$State=="Oregon"|crash$State==
+                              "Washington", "West", "South")))
+
+#making region a factor
+crash$Region <- as.factor(crash$Region)
+
+
+#calculating the median age of the dataset excluding NAs
+med_age <- median(crash$Age, na.rm = TRUE) 
+
+#calculating median age based on person type
+aggregate(data = crash, crash$Age ~ crash$`Person Type`, median, na.rm = TRUE)
+
+#assigning age values based on median of person type
+avg_age <- ave(crash$Age, crash$`Person Type`,
+                 FUN = function(x) median(x, na.rm = TRUE)) 
+
+crash$Age <- ifelse(is.na(crash$Age), avg_age, crash$Age) 
+
+#assigning average age of the whole group to Unkowns 
+crash$Age <- ifelse(is.na(crash$Age), med_age, crash$Age) 
+
+#Alcohol results I'm assuming a value of 0 for those not reported
+#I would think that if someone was under the influence that would absolutely be reported
+#It's easy to skip that column if they weren't under the influence
+crash$`Alcohol Results` <- ifelse(is.na(crash$`Alcohol Results`), 0 , crash$`Alcohol Results`) 
+
+
+#while this fixes Alcohol missing values problem, I'm not convinced that this variable is useful as it is
+#technically they can be under the influence and still legal to drive
+
+crash$Abv_Alc_limit <- ifelse(crash$`Alcohol Results` >= 0.08,"Yes","No")
+
+#making region a factor
+crash$Abv_Alc_limit <- as.factor(crash$Abv_Alc_limit)
+
+crash$`Location Type` <- as.factor(crash$`Location Type`)
+
+crash$`Person Type` <- as.factor(crash$`Person Type`)
+
+crash$`Drug Involvement` <- as.factor(crash$`Drug Involvement`)
+
+crash$Gender <- as.factor(crash$Gender)
+
+crash$`Injury Severity` <- as.factor(crash$`Injury Severity`)
+
+crash$Fatal_Injury <- ifelse(crash$`Injury Severity` == "Fatal Injury (K)", "Yes", "No")
+
+crash$Fatal_Injury <- as.factor(crash$Fatal_Injury)
+
+crash <- crash[,-1]
+crash <- crash[,-2]
+crash <- crash[,-2]
+crash <- crash[,-8]
+crash <- crash[,-10]
+crash <- crash[,-10]
+crash <- crash[,-10]
+crash <- crash[,-10]
+crash <- crash[,-9]
+
+```
+
+
+```{r K proto}
+crash <- as.data.frame(crash)
+crash_z <- scale(crash[c('Age','Alcohol Results')])
+crash_z <- as.data.frame(crash_z)
+
+crash_1 <- crash
+crash_1 <- crash_1[,-4]
+crash_1 <- crash_1[,-4]
+
+crash_scale <- cbind(crash_1, crash_z)
+
+crash.kprototype <- kproto(crash_scale, k=4)
+
+summary(crash.kprototype)
+
+crash_scale$cluster_kprototype <- crash.kprototype$cluster
+```
+
+
+```{r Elbow Plot}
+data <- crash_scale
+# Elbow Method for finding the optimal number of clusters
+set.seed(123)
+# Compute and plot wss for k = 2 to k = 15.
+k.max <- 15
+data <- na.omit(data) # to remove the rows with NA's
+wss <- sapply(1:k.max, 
+ function(k){kproto(data, k)$tot.withinss})
+wss
+plot(1:k.max, wss,
+ type="b", pch = 19, frame = FALSE, 
+ xlab="Number of clusters K",
+ ylab="Total within-clusters sum of squares")
+```
+
